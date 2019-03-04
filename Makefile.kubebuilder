@@ -1,0 +1,75 @@
+makefile_dir := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+#makefile_dir :=$(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+current_dir := $(shell pwd)
+basename := $(shell basename $(current_dir))
+KUBEBUILDER_VER ?= 1.0.8
+devcontainer ?= f4tq/kubebuilder:${KUBEBUILDER_VER}
+
+ifeq (,$(IMG))
+$(error "You must define the IMG i.e. the image you will build for publication")
+endif
+
+ifeq (,$(PKG))
+$(error "You must define the PKG i.e. github.com/f4tq/myproject")
+endif
+
+
+ifeq ("","$(wildcard /.dockerenv)")
+
+help:
+	@echo "current directory: $(current_dir)"
+	@echo "makefile_dir: $(makefile_dir)"
+	@echo "IMG: $(IMG)"
+	@echo "PKG: $(PKG)"
+	@echo "devcontainer: $(devcontainer)"
+	@echo "kubebuilder version: $(KUBEBUILDER_VER)"
+
+SHELL:=/bin/bash
+
+include $(makefile_dir)/run_container.mk
+
+all: test manager
+
+shell:
+	$(call RunContainer,shell)
+
+test manager run manifests fmt vet generate install deploy : SHELL:=/bin/bash
+test manager run manifests fmt vet generate install deploy :  build-container
+	$(call RunContainer,make $@)
+
+cluster-info:
+	$(call RunContainer,kubectl cluster-info)
+
+
+vendor: Gopkg.toml Gopkg.lock
+	$(call RunContainer,dep ensure)
+
+build-container delete-build-container:
+	@cd $(makefile_dir) && make KUBEBUILDER_VER=$(KUBEBUILDER_VER) devcontainer=$(devcontainer) $@
+
+export: ## export the image to a tar ball.  Useful for minikube. 
+export: docker-build
+	set -x; nn=$$(echo "$(IMG)" | sed 's@/@-@g'| sed 's@:@--@g') ;\
+	docker save $(IMG) > $$nn.tar
+
+# Build the docker image
+docker-build:
+	@if  !(docker images  | grep -v REPOSITORY | awk '{ printf("%s:%s\n",$$1,$$2)}'  | grep -q "$(IMG)" ) ; then \
+		docker build --build-arg kubebuilder_ver=$(KUBEBUILDER_VER) --build-arg package=$(PKG) . -t ${IMG} ;\
+	else \
+		echo "WARNING: $(IMG) already exists.  Not rebuilding.  run 'make delete-docker-build' to remove the deployment image"; \
+	fi 
+	echo "updating kustomize image patch file for manager resource"
+	sed -i'' -e 's@image: .*@image: '"${IMG}"'@' ./config/default/manager_image_patch.yaml
+
+delete-docker-build:  ## Delete the deployment container
+delete-docker-build:
+	@if (docker images  | grep -v REPOSITORY | awk '{ printf("%s:%s\n",$$1,$$2)}'  | grep -q "$(devcontainer)" ) ; then \
+		docker rmi $(devcontainer) ;\
+	fi
+# Push the docker image
+docker-push:
+	docker push ${IMG}$
+
+endif
+

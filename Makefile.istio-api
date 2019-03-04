@@ -1,0 +1,47 @@
+makefile_dir := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
+#makefile_dir :=$(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+current_dir := $(shell pwd)
+basename := $(shell basename $(current_dir))
+KUBEBUILDER_VER ?= 1.0.8
+devcontainer ?= f4tq/kubebuilder:${KUBEBUILDER_VER}
+
+ifeq (,$(PKG))
+$(error "You must define the PKG i.e. github.com/f4tq/myproject.   The current directory will get mounted at /go/src/$PKG within the container")
+endif
+
+
+ifeq ("","$(wildcard /.dockerenv)")
+
+help:
+	@echo "go pkg: $(PKG)"
+	@echo "current directory: $(current_dir)"
+	@echo "makefile_dir: $(makefile_dir)"
+	@echo "devcontainer: $(devcontainer)"
+	@echo "kubebuilder version: $(KUBEBUILDER_VER)"
+
+SHELL:=/bin/bash
+
+include $(makefile_dir)/run_container.mk
+
+all: generate 
+
+shell generate vendor cluster-info: build-container
+
+shell: 
+	$(call RunContainer,shell)
+
+generate: 
+	$(call RunContainer,make $@)
+
+cluster-info:
+	$(call RunContainer,kubectl cluster-info)
+
+vendor: go.sum
+	$(call RunContainer,dep ensure)
+
+.PHONY: build-container delete-build-container
+build-container delete-build-container:
+	@set -x ; cd $(makefile_dir) && make KUBEBUILDER_VER=$(KUBEBUILDER_VER) devcontainer=$(devcontainer) $@
+
+endif
+

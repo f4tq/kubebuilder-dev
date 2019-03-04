@@ -1,0 +1,78 @@
+FROM golang:1.12-stretch as builder
+ARG kubebuilder_ver
+ARG package
+ARG shell_ver
+
+ENV SHELL_VER=${shell_ver}
+ENV CGO_ENABLED=0
+ENV GOBIN=/usr/local/bin
+
+RUN apt-get update -y && apt-get install -y unzip
+
+ENV PROTO_VER=3.6.1
+RUN mkdir /usr/local/protobuf && cd /usr/local/protobuf  && wget -O protobuf.zip https://github.com/protocolbuffers/protobuf/releases/download/v${PROTO_VER}/protoc-${PROTO_VER}-linux-x86_64.zip && unzip protobuf.zip
+
+
+RUN go get -u github.com/golang/dep/cmd/dep
+RUN go get -u github.com/nomad-software/vend
+RUN go get golang.org/x/tools/cmd/goimports
+# For some bizarre reason, the real istio tools are obscured  in a user repository/branch!
+# 
+
+RUN mkdir -p /usr/local/kubebuilder; curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v${kubebuilder_ver}/kubebuilder_${kubebuilder_ver}_linux_amd64.tar.gz | tar -C /usr/local/kubebuilder --strip-components 1 -zxf -
+
+RUN curl -k -L -o /usr/local/bin/kustomize https://github.com/kubernetes-sigs/kustomize/releases/download/v1.0.11/kustomize_1.0.11_linux_amd64
+
+# build istio particular protobuf tools
+
+FROM golang:1.12-stretch as istio8772
+ENV CGO_ENABLED=0
+ENV GOBIN=/usr/local/bin
+ENV GO111MODULE=off
+COPY --from=builder /usr/local/bin/ /usr/local/bin/
+
+RUN mkdir -p $GOPATH/src/istio.io && \
+    cd $GOPATH/src/istio.io && \
+    git clone https://github.com/rcernich/istio-tools tools && \
+    cd tools && \
+    git checkout protoc-gen-jsonshim && \
+    echo "Running dep ensure for protoc-gen-jsonshim ... patience" && dep ensure && \
+    cd cmd/protoc-gen-jsonshim && \
+    go install && \
+    cd ../.. && rm -rf vendor && git checkout istio-8772 && echo "Running dep ensure for protoc-gen-kubetype... patience" && dep ensure && \
+    cd cmd/kubetype-gen && go install
+    
+RUN mkdir -p $GOPATH/src/istio.io && \
+    cd $GOPATH/src/istio.io && \
+    git clone https://github.com/rcernich/istio-api api && \
+    cd api && \
+    git checkout istio-8772 && \
+    echo "Running dep ensure for istio/api ... patience" && dep ensure && \
+    make install-k8s-code-generators install-gogo-protoc-gen SHELL='/bin/bash -x'
+
+
+FROM golang:1.12-stretch
+ENV SHELL_VER=${SHELL_VER}
+ENV GO111MODULE=off
+
+COPY --from=builder /usr/local/kubebuilder/ /usr/local/kubebuilder/
+COPY --from=builder /usr/local/bin/ /usr/local/bin/
+COPY --from=builder /usr/local/kubebuilder/bin /usr/local/bin
+COPY --from=builder /usr/local/protobuf/bin/ /usr/local/bin/
+COPY --from=builder /usr/local/protobuf/include/ /usr/local/include/
+
+COPY --from=istio8772 /usr/local/bin/ /usr/local/bin/
+
+RUN curl -L -o /usr/local/bin/prototool  https://github.com/uber/prototool/releases/download/v1.3.0/prototool-Linux-x86_64 && chmod +x /usr/local/bin/prototool
+
+# vim.tiny, less, gomplate and ruby
+
+RUN apt-get update -y && \
+    apt-get install --no-install-recommends -y  less vim-tiny  ruby && \
+    curl -L -o /usr/local/bin/gomplate https://github.com/f4tq/gomplate/releases/download/nested/gomplate && chmod +x /usr/local/bin/gomplate
+    
+ENV PATH=$PATH:/go/bin:/usr/local/kubebuilder/bin
+
+COPY docker-entrypoint.sh /usr/local/bin/
+ENTRYPOINT ["docker-entrypoint.sh"]
+CMD ["bash"]
