@@ -5,9 +5,6 @@ basename := $(shell basename $(current_dir))
 KUBEBUILDER_VER ?= 1.0.8
 devcontainer ?= f4tq/kubebuilder:${KUBEBUILDER_VER}
 
-ifeq (,$(IMG))
-$(error "You must define the IMG i.e. the image you will build for publication")
-endif
 
 ifeq (,$(PKG))
 $(error "You must define the PKG i.e. github.com/f4tq/myproject")
@@ -33,6 +30,8 @@ all: test manager
 shell:
 	$(call RunContainer,shell)
 
+deploy: manager install docker-build
+
 test manager run manifests fmt vet generate install deploy : SHELL:=/bin/bash
 test manager run manifests fmt vet generate install deploy :  build-container
 	$(call RunContainer,make $@)
@@ -54,6 +53,10 @@ export: docker-build
 
 # Build the docker image
 docker-build:
+	ifeq (,$(IMG))
+	$(error "You must define the IMG i.e. the image you will build for publication")
+	endif
+
 	@if  !(docker images  | grep -v REPOSITORY | awk '{ printf("%s:%s\n",$$1,$$2)}'  | grep -q "$(IMG)" ) ; then \
 		docker build --build-arg kubebuilder_ver=$(KUBEBUILDER_VER) --build-arg package=$(PKG) . -t ${IMG} ;\
 	else \

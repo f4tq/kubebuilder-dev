@@ -6,9 +6,9 @@ define RunContainer
 	target="$$(echo '$(1)')" ;\
 	if [  'shell' == "$$target" ] ; then \
 		: $${HIST:=$$HOME/.bash_history-$(basename)}; if [ ! -f $$HIST ]; then touch $$HIST; fi ; DEVMODE="-v $$HIST:/root/.bash_history -e HISTSIZE=100000 " ;\
-		docker run --net=host -it --rm  -e PKG=$(PKG) -e IMG=$(IMG) $$SSH1 $$SSH2 $$DOCKER $$KUBE $$DEVMODE --env-file /tmp/env-file  -v $(shell pwd):/go/src/$(PKG) -w /go/src/$(PKG) $$D2 $(devcontainer)  ;\
+		docker run --net=host -it --rm  -e PKG=$(PKG) $$SSH1 $$SSH2 $$DOCKER $$KUBE $$DEVMODE --env-file /tmp/env-file  -v $(shell pwd):/go/src/$(PKG) -w /go/src/$(PKG) $$D2 $(devcontainer)  ;\
 	else \
-	docker run --net=host -i --rm  -e PKG=$(PKG) -e IMG=$(IMG) $$SSH1 $$SSH2 $$DOCKER $$KUBE --env-file /tmp/env-file  -v $(shell pwd):/go/src/$(PKG) -w /go/src/$(PKG) $$D2 $(devcontainer)  -c "$$target" ;\
+	docker run --net=host -i --rm  -e PKG=$(PKG) $$SSH1 $$SSH2 $$DOCKER $$KUBE --env-file /tmp/env-file  -v $(shell pwd):/go/src/$(PKG) -w /go/src/$(PKG) $$D2 $(devcontainer)  $$target ;\
 	fi
 endef
 

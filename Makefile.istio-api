@@ -25,19 +25,21 @@ include $(makefile_dir)/run_container.mk
 
 all: generate 
 
-shell generate vendor cluster-info: build-container
+shell generate ensure cluster-info: build-container
 
 shell: 
 	$(call RunContainer,shell)
 
-generate: 
-	$(call RunContainer,make $@)
+generate:  ensure
+	$(eval SRC_PKG:= $(shell if [ ! -z "$(src_pkg)" ] ; then echo "src_pkg=$(src_pkg)" ; fi))
+	$(eval SRC_BRANCH:=$(shell if [ ! -z "$(src_branch)" ] ; then echo "src_branch=$(src_branch)" ; fi))
+	$(call RunContainer,make $(SRC_PKG) $(SRC_BRANCH) pkg=$(PKG) $@)
 
 cluster-info:
 	$(call RunContainer,kubectl cluster-info)
 
-vendor: go.sum
-	$(call RunContainer,dep ensure)
+ensure:
+	$(call RunContainer,dep ensure -v)
 
 .PHONY: build-container delete-build-container
 build-container delete-build-container:
