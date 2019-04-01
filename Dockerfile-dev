@@ -31,6 +31,12 @@ ENV GOBIN=/usr/local/bin
 ENV GO111MODULE=off
 COPY --from=builder /usr/local/bin/ /usr/local/bin/
 
+# ABSOLUTELY IMPORTANT:  Do not remote f4tq/istio-tools@protoc-gen-jsonshim.
+#    It contains modifications jsonpb marshalling following ***jsonpb*** spec
+#    Replace if another auto methods is discovered that follows
+#    https://developers.google.com/protocol-buffers/docs/proto3#json
+#
+
 RUN mkdir -p $GOPATH/src/istio.io && \
     cd $GOPATH/src/istio.io && \
     git clone https://github.com/f4tq/istio-tools tools && \
@@ -41,15 +47,15 @@ RUN mkdir -p $GOPATH/src/istio.io && \
     go install && \
     cd ../.. && rm -rf vendor && git checkout istio-8772 && echo "Running dep ensure for protoc-gen-kubetype... patience" && dep ensure && \
     cd cmd/kubetype-gen && go install
-    
+
+
 RUN mkdir -p $GOPATH/src/istio.io && \
     cd $GOPATH/src/istio.io && \
     git clone https://github.com/f4tq/istio-api api && \
     cd api && \
-    git checkout istio-8772 && \
+    git checkout istio-8772  &&\
     echo "Running dep ensure for istio/api ... patience" && dep ensure && \
     make install-k8s-code-generators install-gogo-protoc-gen SHELL='/bin/bash -x'
-
 
 FROM golang:1.12-stretch
 ENV SHELL_VER=${SHELL_VER}

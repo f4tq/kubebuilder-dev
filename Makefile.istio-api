@@ -25,12 +25,15 @@ include $(makefile_dir)/run_container.mk
 
 all: generate 
 
-shell generate ensure cluster-info: build-container
+shell generate ensure cluster-info clean: build-container
 
 shell: 
 	$(call RunContainer,shell)
 
-generate:  ensure
+clean: 
+	$(call RunContainer,make clean)
+
+generate: 
 	$(eval SRC_PKG:= $(shell if [ ! -z "$(src_pkg)" ] ; then echo "src_pkg=$(src_pkg)" ; fi))
 	$(eval SRC_BRANCH:=$(shell if [ ! -z "$(src_branch)" ] ; then echo "src_branch=$(src_branch)" ; fi))
 	$(call RunContainer,make $(SRC_PKG) $(SRC_BRANCH) pkg=$(PKG) $@)

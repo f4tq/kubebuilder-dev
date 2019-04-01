@@ -51,12 +51,16 @@ export: docker-build
 	set -x; nn=$$(echo "$(IMG)" | sed 's@/@-@g'| sed 's@:@--@g') ;\
 	docker save $(IMG) > $$nn.tar
 
+define TestImg
+ifeq ("",$(1))
+$(error "You must define the IMG i.e. the image you will build for publication $(1)")
+endif
+endef
+
 # Build the docker image
 docker-build:
-	ifeq (,$(IMG))
-	$(error "You must define the IMG i.e. the image you will build for publication")
-	endif
-
+	$(eval $(call TestImg $(IMG)))
+	echo "Building $(IMG)"
 	@if  !(docker images  | grep -v REPOSITORY | awk '{ printf("%s:%s\n",$$1,$$2)}'  | grep -q "$(IMG)" ) ; then \
 		docker build --build-arg kubebuilder_ver=$(KUBEBUILDER_VER) --build-arg package=$(PKG) . -t ${IMG} ;\
 	else \
