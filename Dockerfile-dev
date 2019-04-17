@@ -21,7 +21,7 @@ RUN go get golang.org/x/tools/cmd/goimports
 
 RUN mkdir -p /usr/local/kubebuilder; curl -L https://github.com/kubernetes-sigs/kubebuilder/releases/download/v${kubebuilder_ver}/kubebuilder_${kubebuilder_ver}_linux_amd64.tar.gz | tar -C /usr/local/kubebuilder --strip-components 1 -zxf -
 
-RUN curl -k -L -o /usr/local/bin/kustomize https://github.com/kubernetes-sigs/kustomize/releases/download/v1.0.11/kustomize_1.0.11_linux_amd64
+RUN curl -k -L -o /usr/local/bin/kustomize https://github.com/kubernetes-sigs/kustomize/releases/download/v1.0.11/kustomize_1.0.11_linux_amd64 && chmod +x /usr/local/bin/kustomize
 
 # build istio particular protobuf tools
 
@@ -70,6 +70,10 @@ COPY --from=builder /usr/local/protobuf/include/ /usr/local/include/
 COPY --from=istio8772 /usr/local/bin/ /usr/local/bin/
 
 RUN curl -L -o /usr/local/bin/prototool  https://github.com/uber/prototool/releases/download/v1.3.0/prototool-Linux-x86_64 && chmod +x /usr/local/bin/prototool
+
+# get cloudflare tools for generating k8 cert csrs
+RUN cd /usr/local/bin; for i in cfssl-bundle cfssl-certinfo cfssl-newkey cfssl-scan cfssl cfssljson mkbundle multirootca; do wget -O $i https://pkg.cfssl.org/R1.2/${i}_linux-amd64;  chmod +x $i ; done
+
 
 # vim.tiny, less, gomplate and ruby
 
